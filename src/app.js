@@ -1,31 +1,62 @@
 const express = require("express");
-const adminAuth = require("./middleware/auth");
 const connectDB = require("./config/db");
-
+const User = require("./models/user");
 const app = express();
+
 require("dotenv").config();
 
-app.use("/admin", adminAuth);
+app.use(express.json());
 
-app.get("/admin/getalldata", (req, res) => {
-  res.send("get all admins data");
+app.post("/signup", async (req, res) => {
+  const user = new User(req.body);
+  await user.save();
+  res.send("User is Created Successfully!");
 });
 
-app.get("/users", (req, res) => {
-  res.send({
-    name: "Rishi kumar",
-    age: "23",
-    role: "FrontEnd Developer",
-  });
+app.get("/user", async (req, res) => {
+  try {
+    const userEmailId = req.query.emailId;
+    const users = await User.find({ emailId: userEmailId });
+    if (!users) {
+      res.status(404).send("user not found");
+    } else {
+      res.send(users);
+    }
+  } catch {
+    res.status(400).send("something wents worng");
+  }
 });
 
-app.get("/users/data", (req, res) => {
-  throw new Error("fdbfdsjb");
-  res.send("User Data send");
+app.get("/users", async (req, res) => {
+  try {
+    const users = await User.find({});
+    res.send(users);
+  } catch {
+    res.status(400).send("something wents worng");
+  }
 });
 
-app.use("/", (req, res) => {
-  res.status(500).send("something went wrong");
+app.delete("/user", async (req, res) => {
+  const userId = req.query.id;
+  try {
+    await User.findByIdAndDelete(userId);
+
+    res.send("User Deleted successfully");
+  } catch {
+    res.status(400).send("something wents worng");
+  }
+});
+
+app.put("/user", async (req, res) => {
+  const userId = req.query.id;
+  const userData = req.body;
+  console.log(userData);
+  try {
+    await User.findByIdAndUpdate(userId, userData, { runValidators: true });
+    res.send("User Update successfully");
+  } catch (err) {
+    res.status(400).send(`UPDATE failed:${err.message}`);
+  }
 });
 
 // Start server only after DB connection
