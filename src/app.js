@@ -4,12 +4,15 @@ const User = require("./models/user");
 const { validateSignUpData } = require("./utils/validations");
 const bcrypt = require("bcrypt");
 const validator = require("validator");
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 
 const app = express();
 
 require("dotenv").config();
 
 app.use(express.json());
+app.use(cookieParser());
 
 app.post("/login", async (req, res) => {
   try {
@@ -22,15 +25,18 @@ app.post("/login", async (req, res) => {
     const user = await User.findOne({ emailId: emailId });
 
     if (!user) {
-      throw new Error("This Email is not Valid");
+      throw new Error("Invalid Credentials");
     }
     const islogin = await bcrypt.compare(password, user.password);
 
-    if (islogin) {
-      res.send("user is Login successfully!");
-    } else {
-      throw new Error("Password is not valid!");
+    if (!islogin) {
+      throw new Error("Invalid Credentials");
     }
+
+    // Create token and set cookie BEFORE sending response
+    const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET);
+    res.cookie("token", token);
+    res.send("User logged in successfully!");
   } catch (err) {
     res.status(400).send(`ERROR: ${err.message}`);
   }
@@ -57,10 +63,15 @@ app.post("/signup", async (req, res) => {
   }
 });
 
-app.get("/user", async (req, res) => {
+app.get("/profile", async (req, res) => {
   try {
-    const userEmailId = req.query.emailId;
-    const users = await User.find({ emailId: userEmailId });
+    const token = req.cookies.token;
+
+    const verifyToken = await jwt.verify(token, process.env.JWT_SECRET);
+
+    const { _id } = verifyToken;
+
+    const users = await User.findById(_id);
     if (!users) {
       res.status(404).send("user not found");
     } else {
