@@ -1,9 +1,8 @@
 const express = require("express");
 const connectDB = require("./config/db");
 const { validateSignUpData } = require("./utils/validations");
-const bcrypt = require("bcrypt");
+
 const validator = require("validator");
-const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
 const userAuth = require("./middleware/auth");
 const User = require("./models/user");
@@ -27,16 +26,14 @@ app.post("/login", async (req, res) => {
     if (!user) {
       throw new Error("Invalid Credentials");
     }
-    const islogin = await bcrypt.compare(password, user.password);
+    const islogin = await user.validatePassword(password);
 
     if (!islogin) {
       throw new Error("Invalid Credentials");
     }
 
-    // Create token and set cookie BEFORE sending response
-    const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1d",
-    });
+    const token = await user.getJWtToken();
+
     res.cookie("token", token);
     res.send("User logged in successfully!");
   } catch (err) {
