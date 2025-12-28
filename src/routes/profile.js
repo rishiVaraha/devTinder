@@ -128,8 +128,11 @@ router.put("/change-password", userAuth, async (req, res) => {
       }
     );
 
+    // Clear the token cookie to force re-login
+    res.clearCookie("token");
+
     res.json({
-      message: "Password updated successfully",
+      message: "Password updated successfully. Please login again.",
     });
   } catch (err) {
     res.status(400).json({ error: err.message });
