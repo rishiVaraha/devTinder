@@ -2,8 +2,8 @@ const express = require("express");
 const router = express.Router();
 const User = require("../models/user");
 const mongoose = require("mongoose");
-const userAuth = require("../middleware/auth");
-const { validateEditProfileData } = require("../utils/validations");
+const { userAuth } = require("../middleware/auth");
+const { filterAllowedFields } = require("../utils/validations");
 
 // Fetch current user profile
 router.get("/me", userAuth, async (req, res) => {
@@ -30,7 +30,6 @@ router.get("/:id", userAuth, async (req, res) => {
 });
 
 // Fetch all users
-
 router.get("/all", userAuth, async (req, res) => {
   try {
     const users = await User.find({}).select("-password -__v");
@@ -55,13 +54,81 @@ router.delete("/delete", userAuth, async (req, res) => {
 // Update user profile
 router.put("/update", userAuth, async (req, res) => {
   try {
-    if (!validateEditProfileData(req)) {
-      throw new Error("Invalid Update Request!");
+    const allowedFields = [
+      "firstName",
+      "lastName",
+      "emailId",
+      "age",
+      "gender",
+      "skills",
+      "bio",
+    ];
+
+    const isEditAllowed = Object.keys(req.body).every((field) =>
+      allowedFields.includes(field)
+    );
+
+    if (!isEditAllowed) {
+      return res.status(400).json({
+        error: "Invalid fields in update request",
+      });
     }
-    const user = req.user;
-    res.send("User Update successfully");
+
+    const updateData = filterAllowedFields(req.body, allowedFields);
+
+    const updatedUser = await User.findOneAndUpdate(
+      { _id: req.user._id },
+      { $set: updateData },
+      {
+        returnDocument: "after",
+        runValidators: true,
+        context: "query",
+      }
+    );
+
+    res.json({
+      message: "User updated successfully",
+      user: updatedUser,
+    });
   } catch (err) {
-    res.status(400).send(`UPDATE failed:${err.message}`);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.put("/change-password", userAuth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        error: "Current password and new password are required",
+      });
+    }
+
+    const user = await User.findById(req.user._id);
+
+    const isMatch = await user.validatePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(401).json({
+        error: "Current password is incorrect",
+      });
+    }
+
+    // Update password (query update)
+    await User.findOneAndUpdate(
+      { _id: req.user._id },
+      { $set: { password: newPassword } },
+      {
+        runValidators: true,
+        context: "query",
+      }
+    );
+
+    res.json({
+      message: "Password updated successfully",
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 

@@ -11,71 +11,101 @@ const userSchema = new mongoose.Schema(
       minlength: 2,
       maxlength: 30,
     },
-    lastName: {
-      type: String,
-    },
+
+    lastName: String,
+
     emailId: {
       type: String,
       required: true,
       unique: true,
       lowercase: true,
       trim: true,
-      validate(value) {
-        if (!validator.isEmail(value)) {
-          throw new Error(`Invalid Email Address ${value}`);
-        }
+      validate: {
+        validator: validator.isEmail,
+        message: "Invalid email address",
       },
     },
+
     password: {
       type: String,
       required: true,
-      validate(value) {
-        if (!validator.isStrongPassword(value)) {
-          throw new Error(`Enter Strong Password ${value}`);
-        }
+      select: false,
+      validate: {
+        validator: validator.isStrongPassword,
+        message: "Enter a strong password",
       },
     },
+
+    passwordChangedAt: Date,
+
     age: {
       type: Number,
-      min: 18,
-      max: 50,
+      min: [18, "Age must be at least 18"],
+      max: [50, "Age must be at most 50"],
     },
+
     gender: {
       type: String,
-      enum: ["male", "female", "other"],
+      enum: {
+        values: ["male", "female", "other"],
+        message: "Gender must be male, female or other",
+      },
     },
+
     skills: {
       type: [String],
       default: [],
     },
-    Bio: {
+
+    bio: {
       type: String,
+      maxlength: [250, "Bio must be less than 250 characters"],
       default: "This is about user",
-      maxlength: 250,
     },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-userSchema.methods.getJWtToken = function () {
-  const user = this;
-  const token = jwt.sign({ _id: user._id.toString() }, process.env.JWT_SECRET, {
-    expiresIn: "7 days",
+// For CREATE & save()
+userSchema.pre("save", async function () {
+  if (!this.isModified("password")) {
+    return;
+  }
+
+  this.password = await bcrypt.hash(this.password, 10);
+  this.passwordChangedAt = new Date();
+});
+
+// For  updates Password
+userSchema.pre("findOneAndUpdate", async function () {
+  const update = this.getUpdate();
+
+  const password = update.password || update.$set?.password;
+
+  if (!password) return;
+
+  const hashed = await bcrypt.hash(password, 10);
+
+  if (update.password) {
+    update.password = hashed;
+    update.passwordChangedAt = new Date();
+  } else {
+    if (!update.$set) {
+      update.$set = {};
+    }
+    update.$set.password = hashed;
+    update.$set.passwordChangedAt = new Date();
+  }
+});
+
+userSchema.methods.getJWTToken = function () {
+  return jwt.sign({ _id: this._id }, process.env.JWT_SECRET, {
+    expiresIn: "7d",
   });
-  return token;
 };
 
-userSchema.methods.validatePassword = async function (passwordInputByUser) {
-  const user = this;
-  const passwordHash = user.password;
-
-  const isPasswordValid = await bcrypt.compare(
-    passwordInputByUser,
-    passwordHash
-  );
-  return isPasswordValid;
+userSchema.methods.validatePassword = function (inputPassword) {
+  return bcrypt.compare(inputPassword, this.password);
 };
 
 module.exports = mongoose.model("User", userSchema);

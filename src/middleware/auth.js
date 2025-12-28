@@ -3,21 +3,52 @@ const jwt = require("jsonwebtoken");
 
 const userAuth = async (req, res, next) => {
   try {
-    const token = req.cookies.token;
+    const token = req.cookies?.token;
 
-    const verifyToken = await jwt.verify(token, process.env.JWT_SECRET);
-    const { _id } = verifyToken;
-    const user = await User.findById(_id).select("-password -__v");
+    if (!token) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded._id).select("-password -__v");
 
     if (!user) {
-      res.status(404).send("user not found");
-    } else {
-      req.user = user;
+      return res.status(401).json({ error: "User not found" });
     }
+
+    req.user = user;
     next();
   } catch (error) {
-    res.status(400).send(`something wents worng :${error}`);
+    return res.status(401).json({
+      error: "Invalid or expired token",
+    });
   }
 };
 
-module.exports = userAuth;
+const userAuthWithPassword = async (req, res, next) => {
+  try {
+    const token = req.cookies?.token;
+
+    if (!token) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const user = await User.findById(decoded._id).select("+password");
+
+    if (!user) {
+      return res.status(401).json({ error: "User not found" });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: "Invalid token" });
+  }
+};
+
+module.exports = {
+  userAuth,
+  userAuthWithPassword,
+};
