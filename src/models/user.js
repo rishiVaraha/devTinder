@@ -76,7 +76,7 @@ userSchema.pre("save", async function () {
   this.passwordChangedAt = new Date();
 });
 
-// For  updates Password
+// For updates Password
 userSchema.pre("findOneAndUpdate", async function () {
   const update = this.getUpdate();
 
