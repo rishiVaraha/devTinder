@@ -21,6 +21,8 @@ const connectionRequestSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+connectionRequestSchema.index({ sender: 1, receiver: 1 }, { unique: true });
+
 connectionRequestSchema.pre("save", async function () {
   if (this.sender.toString() === this.receiver.toString()) {
     throw new Error("Sender and receiver cannot be the same");
