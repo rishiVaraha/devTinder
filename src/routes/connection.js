@@ -4,12 +4,12 @@ const User = require("../models/user");
 const router = express.Router();
 const { userAuth } = require("../middleware/auth");
 
-router.post("/:status/:receiverUserId", userAuth, async (req, res) => {
+router.post("/send/:status/:receiverUserId", userAuth, async (req, res) => {
   try {
     const { status, receiverUserId } = req.params;
     const user = req.user;
 
-    const allowedStatus = ["pending", "accepted"];
+    const allowedStatus = ["interested", "ignored"];
     if (!allowedStatus.includes(status)) {
       return res.status(400).json({ error: "Invalid status" });
     }
@@ -50,6 +50,36 @@ router.post("/:status/:receiverUserId", userAuth, async (req, res) => {
       .json({ message: "Connection request sent successfully" });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+router.post("/respond/:requestId/:action", userAuth, async (req, res) => {
+  try {
+    const { requestId, action } = req.params;
+    const user = req.user;
+
+    const allowedActions = ["accepted", "rejected", "blocked"];
+
+    if (!allowedActions.includes(action)) {
+      return res.status(400).json({ error: "Invalid action" });
+    }
+
+    const connectionResponse = await ConnectionRequest.findOne({
+      _id: requestId,
+      resever: user._id,
+      status: "interested",
+    });
+
+    if (!connectionResponse) {
+      return res.send(404).json({ message: "Connection request not found" });
+    }
+
+    connectionResponse.status = action;
+
+    const data = await connectionResponse.save();
+    res.send(200).json({ message: `Connection request ${action} ${data}` });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
 });
 
